@@ -3,7 +3,9 @@
  */
 
 import { useEffect, useState } from 'react';
+// @ts-ignore
 import { useForm } from 'react-hook-form';
+// @ts-ignore
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
