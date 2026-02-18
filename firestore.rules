@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user');
+    }
+
+    function isUser() {
+      return isAuthenticated() && getUserRole() == 'user';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserRole() == 'super_admin';
+    }
+
+    function isAdminOrSuperAdmin() {
+      return isAuthenticated() && (getUserRole() == 'admin' || getUserRole() == 'super_admin');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ─── Users ────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Users can read/update their own profile
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─── Departments ──────────────────────────────────────────────────────────
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ─── Categories ───────────────────────────────────────────────────────────
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ─── Complaints ───────────────────────────────────────────────────────────
+    match /complaints/{complaintId} {
+      // Users can read their own complaints
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdminOrSuperAdmin()
+      );
+
+      // Users can create complaints
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Admins can update complaints in their department
+      // Users can only update their own complaints (limited fields)
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        (isAdmin() && resource.data.departmentId ==
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.departmentId) ||
+        (isOwner(resource.data.userId) && onlyUpdatingAllowedFields())
+      );
+
+      allow delete: if isSuperAdmin();
+
+      function onlyUpdatingAllowedFields() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['title', 'description', 'location', 'updatedAt']);
+      }
+    }
+
+    // ─── Analytics ────────────────────────────────────────────────────────────
+    match /analytics/{docId} {
+      allow read: if isAdminOrSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    // ─── Notifications ────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || 
+        isAdminOrSuperAdmin()
+      );
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}
