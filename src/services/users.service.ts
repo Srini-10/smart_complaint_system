@@ -49,15 +49,21 @@ export async function createUserProfile(
     const existing = await getDoc(userRef);
 
     if (existing.exists()) {
+        const data = existing.data() as Record<string, unknown>;
+        // Promote to admin if email matches
+        if (email === 'admin@gmail.com' && data.role !== 'admin' && data.role !== 'super_admin') {
+            await updateDoc(userRef, { role: 'admin', updatedAt: serverTimestamp() });
+            return userFromDoc(uid, { ...data, role: 'admin' });
+        }
         // Update last seen
         await updateDoc(userRef, { updatedAt: serverTimestamp() });
-        return userFromDoc(uid, existing.data() as Record<string, unknown>);
+        return userFromDoc(uid, data);
     }
 
     const userData = {
         name,
         email,
-        role,
+        role: email === 'admin@gmail.com' ? 'admin' : role,
         photoURL: photoURL ?? null,
         departmentId: null,
         phone: null,

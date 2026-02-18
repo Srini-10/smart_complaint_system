@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import { PlusCircle, Clock, CheckCircle2, AlertCircle, XCircle, TrendingUp } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useComplaintsStore } from '@/stores/complaints.store';
-import { subscribeToUserComplaints } from '@/services/complaints.service';
+import { subscribeToAllComplaints } from '@/services/complaints.service';
 import { getCategoryIcon, getCategoryLabel, getPriorityColor, getStatusColor, getStatusLabel, timeAgo } from '@/lib/utils';
 import type { Complaint } from '@/types';
 
@@ -33,9 +33,14 @@ function ComplaintRow({ complaint }: { complaint: Complaint }) {
         >
             <span className="text-2xl">{getCategoryIcon(complaint.category)}</span>
             <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
-                    {complaint.title}
-                </p>
+                <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+                        {complaint.title}
+                    </p>
+                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded uppercase tracking-wider font-bold">
+                        {complaint.userName.split(' ')[0]}
+                    </span>
+                </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{getCategoryLabel(complaint.category)} • {timeAgo(complaint.createdAt)}</p>
             </div>
             <div className="flex flex-col items-end gap-1.5">
@@ -56,13 +61,12 @@ export default function UserDashboard() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!user) return;
-        const unsub = subscribeToUserComplaints(user.uid, (data) => {
+        const unsub = subscribeToAllComplaints((data) => {
             setComplaints(data);
             setIsLoading(false);
         });
         return unsub;
-    }, [user, setComplaints]);
+    }, [setComplaints]);
 
     const stats = {
         total: complaints.length,
@@ -79,9 +83,9 @@ export default function UserDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        Welcome back, {user?.name?.split(' ')[0]} 👋
+                        System Dashboard 👋
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Track and manage your complaints</p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">Global overview of all complaints across the system</p>
                 </div>
                 <Link
                     to="/submit"
@@ -103,8 +107,8 @@ export default function UserDashboard() {
             {/* Recent Complaints */}
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm">
                 <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Complaints</h2>
-                    <Link to="/my-complaints" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline">View all</Link>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">All Recent Complaints</h2>
+                    <Link to="/my-complaints" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline">View history</Link>
                 </div>
 
                 {isLoading ? (

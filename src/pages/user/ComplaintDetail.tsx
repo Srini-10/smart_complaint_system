@@ -4,14 +4,18 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, CheckCircle2, AlertCircle, XCircle, User, Building2, Sparkles } from 'lucide-react';
-import { getComplaint } from '@/services/complaints.service';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Clock, CheckCircle2, AlertCircle, XCircle, User, Building2, Sparkles, Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuthStore } from '@/stores/auth.store';
+import { getComplaint, updateComplaintStatus } from '@/services/complaints.service';
 import {
     getCategoryIcon, getCategoryLabel, getPriorityColor, getStatusColor,
     getStatusLabel, getPriorityLabel, formatDateTime, timeAgo, getSLAStatus, cn
 } from '@/lib/utils';
-import type { Complaint } from '@/types';
+import type { Complaint, ComplaintStatus } from '@/types';
+
+const STATUS_OPTIONS: ComplaintStatus[] = ['pending', 'in_progress', 'resolved', 'closed'];
 
 function StatusIcon({ status }: { status: string }) {
     if (status === 'resolved') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
@@ -22,16 +26,42 @@ function StatusIcon({ status }: { status: string }) {
 
 export default function ComplaintDetail() {
     const { id } = useParams<{ id: string }>();
+    const { user, role } = useAuthStore();
+    const navigate = useNavigate();
     const [complaint, setComplaint] = useState<Complaint | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [newStatus, setNewStatus] = useState<ComplaintStatus | ''>('');
+    const [note, setNote] = useState('');
+
+    const isAdmin = role === 'admin' || role === 'super_admin';
+
+    const fetchComplaint = async () => {
+        if (!id) return;
+        const c = await getComplaint(id);
+        setComplaint(c);
+        setIsLoading(false);
+        if (c) setNewStatus(c.status);
+    };
 
     useEffect(() => {
-        if (!id) return;
-        getComplaint(id).then((c) => {
-            setComplaint(c);
-            setIsLoading(false);
-        });
+        fetchComplaint();
     }, [id]);
+
+    const handleUpdateStatus = async () => {
+        if (!id || !user || !newStatus || newStatus === complaint?.status) return;
+        setIsUpdating(true);
+        try {
+            await updateComplaintStatus(id, newStatus, user.uid, user.name, note || undefined);
+            toast.success('Status updated successfully');
+            await fetchComplaint();
+            setNote('');
+        } catch (error) {
+            toast.error('Failed to update status');
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -161,6 +191,55 @@ export default function ComplaintDetail() {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Admin Status Update */}
+            {isAdmin && (
+                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+                    <h2 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-blue-500" />
+                        Admin: Update Status
+                    </h2>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                    New Status
+                                </label>
+                                <select
+                                    value={newStatus}
+                                    onChange={(e) => setNewStatus(e.target.value as ComplaintStatus)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {STATUS_OPTIONS.map((s) => (
+                                        <option key={s} value={s}>{getStatusLabel(s)}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                Resolution / Status Note
+                            </label>
+                            <textarea
+                                placeholder="Add a note about the status change or resolution..."
+                                value={note}
+                                onChange={(e) => setNote(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-24"
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleUpdateStatus}
+                                disabled={isUpdating || newStatus === complaint.status}
+                                className="inline-flex items-center gap-2 px-6 py-2 gradient-primary text-white font-semibold rounded-lg hover:opacity-90 disabled:opacity-50 transition"
+                            >
+                                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                Update Status
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

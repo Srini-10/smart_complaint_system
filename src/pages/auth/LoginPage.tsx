@@ -20,7 +20,14 @@ const loginSchema = z.object({
 type LoginFormData = any;
 
 export default function LoginPage() {
-    const { loginWithEmail, loginWithGoogle, error: authError, user, isLoading: authLoading } = useAuth();
+    const {
+        loginWithEmail,
+        loginWithGoogle,
+        register: authRegister,
+        error: authError,
+        user,
+        isLoading: authLoading
+    } = useAuth();
     const navigate = useNavigate();
     const [showPassword, setShowPassword] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
@@ -46,9 +53,22 @@ export default function LoginPage() {
         setError('');
         try {
             await loginWithEmail(data.email, data.password);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Login failed';
-            if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential')) {
+        } catch (err: any) {
+            const errorCode = err.code || '';
+            const msg = err.message || '';
+
+            // If admin account doesn't exist, attempt auto-registration for convenience
+            if (data.email === 'admin@gmail.com' && (errorCode === 'auth/user-not-found' || msg.includes('user-not-found') || errorCode === 'auth/invalid-credential')) {
+                try {
+                    await authRegister('Admin User', data.email, data.password);
+                    return; // Success, AuthContext will handle redirect via useEffect
+                } catch (regErr: any) {
+                    setError('Invalid email or password.');
+                    return;
+                }
+            }
+
+            if (msg.includes('user-not-found') || msg.includes('wrong-password') || errorCode === 'auth/invalid-credential') {
                 setError('Invalid email or password.');
             } else {
                 setError(msg);
